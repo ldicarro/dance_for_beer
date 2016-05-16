@@ -1,9 +1,5 @@
 # import the necessary packages
 from pyimagesearch.tempimage import TempImage
-#from dropbox.client import DropboxOAuth2FlowNoRedirect
-#from dropbox.client import DropboxClient
-#from picamera.array import PiRGBArray
-#from picamera import PiCamera
 import argparse
 import warnings
 import datetime
@@ -18,48 +14,26 @@ ap.add_argument("-c", "--conf", required=True,
 	help="path to the JSON configuration file")
 args = vars(ap.parse_args())
 
-# filter warnings, load the configuration and initialize the Dropbox
-# client
+# filter warnings, load the configuration
 warnings.filterwarnings("ignore")
 conf = json.load(open(args["conf"]))
-client = None
 
-# check to see if the Dropbox should be used
-if conf["use_dropbox"]:
-	# connect to dropbox and start the session authorization process
-	flow = DropboxOAuth2FlowNoRedirect(conf["dropbox_key"], conf["dropbox_secret"])
-	print "[INFO] Authorize this application: {}".format(flow.start())
-	authCode = raw_input("Enter auth code here: ").strip()
-
-	# finish the authorization and grab the Dropbox client
-	(accessToken, userID) = flow.finish(authCode)
-	client = DropboxClient(accessToken)
-	print "[SUCCESS] dropbox account linked"
 
 # initialize the camera and grab a reference to the raw camera capture
-#camera = PiCamera()
-#camera.resolution = tuple(conf["resolution"])
-#camera.framerate = conf["fps"]
-#rawCapture = PiRGBArray(camera, size=tuple(conf["resolution"]))
 camera = cv2.VideoCapture(0)
 
-# allow the camera to warmup, then initialize the average frame, last
-# uploaded timestamp, and frame motion counter
+# allow the camera to warmup, then initialize the average frame, 
+# lastuploaded timestamp, 
+# and frame motion counter
 print "[INFO] warming up..."
 time.sleep(conf["camera_warmup_time"])
 avg = None
-lastUploaded = datetime.datetime.now()
+lastUploaded = datetime.datetime.now() # i think i want to use this one for timing of events. ie: 1 minute from occupied detect to start dancing, dance for 2 minutes....
 motionCounter = 0
 
-# capture frames from the camera
-#for f in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-	# grab the raw NumPy array representing the image and initialize
-	# the timestamp and occupied/unoccupied text
-#	frame = f.array
 # loop over the frames of the video
 while True:
-	# grab the current frame and initialize the occupied/unoccupied
-	# text
+	# grab the current frame and initialize the occupied/unoccupied text
 	(grabbed, frame) = camera.read()
 	text = "Unoccupied"
 
@@ -81,7 +55,6 @@ while True:
 	if avg is None:
 		print "[INFO] starting background model..."
 		avg = gray.copy().astype("float")
-		#rawCapture.truncate(0)
 		continue
 
 	# accumulate the weighted average between the current frame and
@@ -110,15 +83,6 @@ while True:
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 		text = "Occupied"
 
-	# draw the text and timestamp on the frame
-	ts = timestamp.strftime("%A %d %B %Y %I:%M:%S%p")
-	cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
-		cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-	cv2.putText(frame, ts, (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX,
-		0.35, (0, 0, 255), 1)
-
-
-
 	# check to see if the room is occupied
 	if text == "Occupied":
 		# check to see if enough time has passed between uploads
@@ -126,8 +90,7 @@ while True:
 			# increment the motion counter
 			motionCounter += 1
 
-			# check to see if the number of frames with consistent motion is
-			# high enough
+			# check to see if the number of frames with consistent motion is high enough
 			if motionCounter >= conf["min_motion_frames"]:
 				# check to see if dropbox sohuld be used
 				print "beer released"
@@ -157,17 +120,3 @@ while True:
 	key = cv2.waitKey(1) & 0xFF
 	if key == ord("q"):
 		break
-
-
-	# check to see if the frames should be displayed to screen
-	if conf["show_video"]:
-		# display the security feed
-		#cv2.imshow("Security Feed", frame)
-		key = cv2.waitKey(1) & 0xFF
-
-		# if the `q` key is pressed, break from the lop
-		if key == ord("q"):
-			break
-
-	# clear the stream in preparation for the next frame
-	#rawCapture.truncate(0)
